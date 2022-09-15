@@ -22,86 +22,93 @@ pub trait Escrow {
     fn add_offer(&self, token_send: TokenIdentifier, amount_send: BigUint,
         token_receive: TokenIdentifier, amount_receive: BigUint, pair_wallet: ManagedAddress ) {
         
-        let mut passed_timestamp = true;
-        let mut passed_duplicate = true;
-        let caller = self.blockchain().get_caller();
+        // Check for timestamp
         let current_timestamp = self.blockchain().get_block_timestamp();
-        if current_timestamp < self.start_timestamp().get(){
-            self.send().direct_esdt(
-                &caller,
-                &token_send,
-                0,
-                &amount_send,
-                b"Refunded because escrow service is not available at the moment!"
-            );
-            passed_timestamp = false;
-        };
+        require!(
+            current_timestamp > self.start_timestamp().get(),
+            "Escrow service is not available at the moment!"
+        );
+ 
+        // Check for duplicate offers
+        let data_own_pov: EscrowFormat<Self::Api> = EscrowFormat {
+            token_send: token_send.clone(),
+            amount_send: amount_send.clone(),
+            token_receive: token_receive.clone(),
+            amount_receive: amount_receive.clone(),
+            };
+        let caller = self.blockchain().get_caller();
+        require!(
+            self.check_duplicate_offers(&data_own_pov, &caller),
+            "Error; this offer already exists!"
+        );
+        
+        // Check for disallowed tokens
+        require!(
+            !self.tokens_mapper().contains(&token_send),
+            "The token you want to Swap From is disallowed for escrow!");
 
-        if passed_timestamp {
-            let data_own_pov: EscrowFormat<Self::Api> = EscrowFormat {
-                token_send: token_send.clone(),
-                amount_send: amount_send.clone(),
-                token_receive: token_receive.clone(),
-                amount_receive: amount_receive.clone(),
-                };
+        require!(
+            !self.tokens_mapper().contains(&token_receive),
+            "The token you want to Swap To is disallowed for escrow!");
 
-            let data_pair_pov: EscrowFormat<Self::Api> = EscrowFormat {
-                token_send: token_receive.clone(),
-                amount_send: amount_receive.clone(),
-                token_receive: token_send.clone(),
-                amount_receive: amount_send.clone(),
-                };
-
-            let send_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.send_data().get(&caller); 
-            match send_mapper_option {
-                Some(mut send_mapper_save) => {
-                    for record in send_mapper_save.iter() {
-                        if record.data == data_own_pov {
-                            self.send().direct_esdt(
-                                &caller,
-                                &token_send,
-                                0,
-                                &amount_send,
-                                b"Refunded because this offer already exists!"
-                            );
-                            passed_duplicate = false;
-                            break;
-                        }
-                    }
-                    if passed_duplicate {
-                    send_mapper_save.insert(EscrowWalletFormat {
-                        wallet: pair_wallet.clone(),
-                        data: data_own_pov.clone() 
-                    });
-                    }
-                },
-                None => {
-                    if passed_duplicate {
-                    self.send_data().insert_default(caller.clone());
-                    self.send_data().get(&caller).unwrap().insert(EscrowWalletFormat {
-                        wallet: pair_wallet.clone(),
-                        data: data_own_pov.clone()
-                    });
-                }},
+        let data_pair_pov: EscrowFormat<Self::Api> = EscrowFormat {
+            token_send: token_receive.clone(),
+            amount_send: amount_receive.clone(),
+            token_receive: token_send.clone(),
+            amount_receive: amount_send.clone(),
             };
 
-            if passed_duplicate {
-                let receive_mapper_save_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.receive_data().get(&pair_wallet); 
-                match receive_mapper_save_option {
-                    Some(mut receive_mapper_save) => {
-                        receive_mapper_save.insert(EscrowWalletFormat {
-                            wallet: caller,
-                            data: data_pair_pov, 
-                        });
-                    },
-                    None => {
-                        self.receive_data().insert_default(pair_wallet.clone());
-                        self.receive_data().get(&pair_wallet).unwrap().insert(EscrowWalletFormat {
-                            wallet: caller,
-                            data: data_pair_pov, 
-                        });
-                    },
-                };
+
+        // Main code for adding offer
+        let send_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.send_data().get(&caller); 
+        match send_mapper_option {
+            Some(mut send_mapper) => {
+                send_mapper.insert(EscrowWalletFormat {
+                    wallet: pair_wallet.clone(),
+                    data: data_own_pov.clone() 
+                });
+            },
+            None => {
+                self.send_data().insert_default(caller.clone());
+                self.send_data().get(&caller).unwrap().insert(EscrowWalletFormat {
+                    wallet: pair_wallet.clone(),
+                    data: data_own_pov.clone()
+                });
+            },
+        };
+
+        let receive_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.receive_data().get(&pair_wallet); 
+        match receive_mapper_option {
+            Some(mut receive_mapper) => {
+                receive_mapper.insert(EscrowWalletFormat {
+                    wallet: caller,
+                    data: data_pair_pov, 
+                });
+            },
+            None => {
+                self.receive_data().insert_default(pair_wallet.clone());
+                self.receive_data().get(&pair_wallet).unwrap().insert(EscrowWalletFormat {
+                    wallet: caller,
+                    data: data_pair_pov, 
+                });
+            },
+        };
+    }
+
+    #[inline]
+    fn check_duplicate_offers(&self, data_own_pov: &EscrowFormat<Self::Api>, caller: &ManagedAddress<Self::Api> ) -> bool {
+        let send_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.send_data().get(&caller); 
+        match send_mapper_option {
+            Some(send_mapper) => {
+                for record in send_mapper.iter() {
+                    if record.data == *data_own_pov {
+                        return false;
+                    }
+                }
+                true
+            },
+            None => {
+                true
             }
         }
     }
@@ -151,13 +158,12 @@ pub trait Escrow {
                         if receive_mapper.len() == 0 {
                             self.receive_data().remove(&caller);
                         }
-
                         self.send().direct_esdt(
                             &caller,
                             &token_send,
                             0,
                             &amount_send,
-                            b"Canceled offer"
+                            b"Removed offer"
                         );
                         break;
                     }
@@ -167,7 +173,89 @@ pub trait Escrow {
         };
     }
 
-    // CLEAR
+
+    #[endpoint(acceptOffer)]
+    #[payable("*")]   
+    fn accept_offer(&self, token_send: TokenIdentifier, amount_send: BigUint,
+        token_receive: TokenIdentifier, amount_receive: BigUint, pair_wallet: ManagedAddress ) {
+
+        let data_own_pov: EscrowFormat<Self::Api> = EscrowFormat {
+            token_send: token_send.clone(),
+            amount_send: amount_send.clone(),
+            token_receive: token_receive.clone(),
+            amount_receive: amount_receive.clone(),
+            };
+
+        let data_pair_pov: EscrowFormat<Self::Api> = EscrowFormat {
+            token_send: token_receive.clone(),
+            amount_send: amount_receive.clone(),
+            token_receive: token_send.clone(),
+            amount_receive: amount_send.clone(),
+            };
+
+        let caller = self.blockchain().get_caller();
+        let receive_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.receive_data().get(&caller);
+        let mut found = false;
+
+        match receive_mapper_option {
+            Some(mut receive_mapper) => {
+                'outer_for: for record in receive_mapper.iter() {
+                    if record.data == data_own_pov {
+                        self.send().direct_esdt(
+                            &pair_wallet,
+                            &token_send,
+                            0,
+                            &amount_send,
+                            b"Initiator tokens sent"
+                        );
+                        self.send().direct_esdt(
+                            &self.blockchain().get_caller(),
+                            &token_receive,
+                            0,
+                            &amount_receive,
+                            b"Concluder tokens sent"
+                        );
+                        receive_mapper.swap_remove(&record);
+                        if receive_mapper.len() == 0 {
+                            self.receive_data().remove(&caller);
+                        }
+                        let send_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.send_data().get(&pair_wallet);
+                        match send_mapper_option {
+                            Some(mut send_mapper) => {
+                                'inner_for: for record in send_mapper.iter() {
+                                    if record.data == data_pair_pov {
+                                        send_mapper.swap_remove(&record);
+                                        if send_mapper.len() == 0 {
+                                            self.send_data().remove(&pair_wallet);
+                                        }
+                                        break 'inner_for;
+                                    }
+                                }
+                            },
+                            None => {}
+                        };
+                        found = true;
+                        break 'outer_for;
+                    }
+                }
+                if !found{
+                    require!(
+                        false,
+                        "Wallet has a different offer than the one you accepted!"
+                    );
+                };
+            },
+            None =>  {
+                require!(
+                    false,
+                    "Offer from wallet inexistent!"
+                );
+            }
+        }
+    }
+
+
+    // CLEAR CONTRACT
 
     #[only_owner]
     #[endpoint(clear)]
@@ -176,7 +264,6 @@ pub trait Escrow {
         self.receive_data().remove(address);
     }
 
- 
     // STORAGE
 
     /// START TIMESTAMP
@@ -195,19 +282,25 @@ pub trait Escrow {
         self.start_timestamp();
         }
 
-    /// ALLOWED ESTDs
+    /// DISSALOWED ESCROW TOKENS 
     #[storage_mapper("esdt_mapper")]
-    fn esdt_mapper(&self) -> SetMapper<TokenIdentifier>;
+    fn tokens_mapper(&self) -> SetMapper<TokenIdentifier>;
 
     #[only_owner]
-    #[endpoint(addEsdt)]
-    fn add_esdt(&self, token_id: TokenIdentifier) {
-        self.esdt_mapper().insert(token_id);
+    #[endpoint(addDisallowedToken)]
+    fn add_dissallowd_tokens(&self, token_id: TokenIdentifier) {
+        self.tokens_mapper().insert(token_id);
         }
 
-    #[view(getEsdts)]
-    fn get_esdts(&self) -> SetMapper<TokenIdentifier>{
-            self.esdt_mapper()
+    #[only_owner]
+    #[endpoint(removeDisallowedToken)]
+    fn remove_dissallowd_tokens(&self, token_id: TokenIdentifier) {
+        self.tokens_mapper().remove(&token_id);
+        }
+
+    #[view(getDisallowedTokens)]
+    fn get_dissallowd_esdt(&self) -> SetMapper<TokenIdentifier>{
+            self.tokens_mapper()
         }
     
     /// ESCROW DATA
@@ -227,7 +320,7 @@ pub trait Escrow {
     fn receive_data(&self) -> MapStorageMapper<ManagedAddress,  UnorderedSetMapper<EscrowWalletFormat<Self::Api>>>;
     
     #[view(getReceiveData)]
-    fn get_receive_data_address(&self, address: &ManagedAddress ) ->  UnorderedSetMapper<EscrowWalletFormat<Self::Api>> 
+    fn get_receive_data(&self, address: &ManagedAddress ) ->  UnorderedSetMapper<EscrowWalletFormat<Self::Api>> 
     {
         self.receive_data().get(address).unwrap()
     }

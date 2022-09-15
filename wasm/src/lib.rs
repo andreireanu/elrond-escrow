@@ -7,13 +7,15 @@
 elrond_wasm_node::wasm_endpoints! {
     escrow
     (
-        addEsdt
+        acceptOffer
+        addDisallowedToken
         addOffer
         clear
-        getEsdts
+        getDisallowedTokens
         getReceiveData
         getSendData
         getStartTimestamp
+        removeDisallowedToken
         removeOffer
         setStartTimestamp
     )
