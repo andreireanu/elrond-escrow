@@ -3,8 +3,6 @@ CHAIN_ID="D"
 WALLET_ALICE="${PWD}/elrond-escrow/wallets/alice.pem"
 WALLET_BOB="${PWD}/elrond-escrow/wallets/bob.pem"
 CONTRACT_ADDRESS="erd1qqqqqqqqqqqqqpgq8qtky6y4l6pljtgf75alj0tf748h7u227wpqe9t0wc"
-TREASURY_WALLET="erd1aqd2v3hsrpgpcscls6a6al35uc3vqjjmskj6vnvl0k93e73x7wpqtpctqw"
-TREASURY_WALLET_HEX="0x$(erdpy wallet bech32 --decode ${TREASURY_WALLET})"
 ALICE_ADDRESS="erd1aqd2v3hsrpgpcscls6a6al35uc3vqjjmskj6vnvl0k93e73x7wpqtpctqw"
 ALICE_ADDRESS_HEX="$(erdpy wallet bech32 --decode ${ALICE_ADDRESS})"
 ALICE_ADDRESS_HEXX="0x$(erdpy wallet bech32 --decode ${ALICE_ADDRESS})"
@@ -45,7 +43,7 @@ upgrade() {
     --outfile="elrond-escrow/interaction/upgrade.json" \
     --proxy=${PROXY} \
     --chain=${CHAIN_ID} \
-    --gas-limit=50000000 \
+    --gas-limit=60000000 \
     --arguments ${START_TIMESTAMP}
 }
 
@@ -102,13 +100,8 @@ getDisallowedTokens() {
     erdpy --verbose contract query ${CONTRACT_ADDRESS} \
     --proxy=${PROXY} \
     --function="getDisallowedTokens" > ${PWD}/elrond-escrow/interaction/getDisallowedTokens.json
-
-    ESDTS_HEX=$(erdpy data parse --file="${PWD}/elrond-escrow/interaction/getDisallowedTokens.json" --expression="data[0]['hex']")
-    echo ${ESDTS_HEX}
-    ESDTS=$(echo ${ESDTS_HEX} | xxd -r -p)
-    echo "ESDTS: ${ESDTS}"
-    echo -e "\nESDTS: ${ESDTS}" >> ${PWD}/elrond-escrow/interaction/getDisallowedTokens.json
-}
+    }    
+ 
 
 ######## GET DATA STORED WITH SENDER WALLET KEY
  
@@ -116,8 +109,8 @@ getSendData() {
     erdpy --verbose contract query ${CONTRACT_ADDRESS} \
     --proxy=${PROXY} \
     --function="getSendData" > ${PWD}/elrond-escrow/interaction/getSendData.json \
-    --arguments ${ALICE_ADDRESS_HEXX} 
-    python3  ${PWD}/elrond-escrow/interaction/format_escrow_data.py send ${ALICE_ADDRESS}
+    --arguments ${BOB_ADDRESS_HEXX} 
+    python3  ${PWD}/elrond-escrow/interaction/format_escrow_data.py send ${BOB_ADDRESS}
     }
  
 ######## GET DATA STORED WITH RECEIVER WALLET KEY
@@ -126,13 +119,13 @@ getReceiveData() {
     erdpy --verbose contract query ${CONTRACT_ADDRESS} \
     --proxy=${PROXY} \
     --function="getReceiveData" > ${PWD}/elrond-escrow/interaction/getReceiveData.json \
-    --arguments ${BOB_ADDRESS_HEXX}
-    python3  ${PWD}/elrond-escrow/interaction/format_escrow_data.py receive ${BOB_ADDRESS}
+    --arguments ${ALICE_ADDRESS_HEXX}
+    python3  ${PWD}/elrond-escrow/interaction/format_escrow_data.py receive ${ALICE_ADDRESS}
     }
 
-######## CLEAR DATABASE
+######## CLEAR DATA
  
-clearData() {
+clearDataAlice() {
     erdpy --verbose contract call ${CONTRACT_ADDRESS} \
     --send \
     --proxy=${PROXY} \
@@ -143,6 +136,18 @@ clearData() {
     --function="clear" \
     --arguments ${ALICE_ADDRESS_HEXX}
     }    
+
+clearDataBob() {
+    erdpy --verbose contract call ${CONTRACT_ADDRESS} \
+    --send \
+    --proxy=${PROXY} \
+    --chain=${CHAIN_ID} \
+    --pem=${WALLET_ALICE} \
+    --recall-nonce \
+    --gas-limit=8000000 \
+    --function="clear" \
+    --arguments ${BOB_ADDRESS_HEXX}
+    }  
  
 ######## ESCROW
 
@@ -210,6 +215,25 @@ removeOffer() {
     --function="removeOffer" \
     --arguments "str:"$TOKEN_TO $AMOUNT_TO "str:"$TOKEN_FROM $AMOUNT_FROM $BOB_ADDRESS
     }   
+
+######## GET NUMBER OF SUCCESSFUL ESCROWS
+
+getEscrowsNo() {
+    erdpy --verbose contract call ${CONTRACT_ADDRESS} \
+    --send \
+    --proxy=${PROXY} \
+    --chain=${CHAIN_ID} \
+    --pem=${WALLET_ALICE} \
+    --recall-nonce \
+    --gas-limit=8000000 \
+    --function="getEscrowsNo" > ${PWD}/elrond-escrow/interaction/getEscrowsNo.json
+    }   
+
+getEscrowsNo() {
+    erdpy --verbose contract query ${CONTRACT_ADDRESS} \
+    --proxy=${PROXY} \
+    --function="getEscrowsNo" > ${PWD}/elrond-escrow/interaction/getgetEscrowsNo.json
+    }  
 
 ######## SEND TOKEN
 

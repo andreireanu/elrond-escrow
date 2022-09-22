@@ -10,11 +10,11 @@ from erdpy.wallet import signing
 import binascii as bs
 
 
-TOKEN_NAME = b"ESCToken4"
-TOKEN_SYMBOL = b"ESC4"
+TOKEN_NAME = b"ESCToken8"
+TOKEN_SYMBOL = b"ESC8"
 
-DECIMALS = 18
-SUPPLY = 5000 * 10**DECIMALS
+DECIMALS = 9
+SUPPLY = 1000000000 * 10**DECIMALS
 
 
 def hex_string(s: str) -> str:

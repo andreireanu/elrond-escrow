@@ -12,6 +12,7 @@ elrond_wasm_node::wasm_endpoints! {
         addOffer
         clear
         getDisallowedTokens
+        getEscrowsNo
         getReceiveData
         getSendData
         getStartTimestamp

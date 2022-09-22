@@ -1,17 +1,17 @@
 #![no_std]
+elrond_wasm::imports!();
+elrond_wasm::derive_imports!();
 
+mod storage;
 mod escrow_format;
-
 use escrow_format::EscrowFormat;
 use escrow_format::EscrowWalletFormat;
 
-elrond_wasm::imports!();
-elrond_wasm::derive_imports!();
- 
-
 /// Escrow any two EDSTs
 #[elrond_wasm::contract]
-pub trait Escrow {
+pub trait Escrow : 
+    crate::storage::StorageModule 
+    {
     #[init]
     fn init(&self, start_timestamp: u64) {
         self.start_timestamp().set(start_timestamp);
@@ -28,7 +28,7 @@ pub trait Escrow {
             current_timestamp > self.start_timestamp().get(),
             "Escrow service is not available at the moment!"
         );
- 
+
         // Check for duplicate offers
         let data_own_pov: EscrowFormat<Self::Api> = EscrowFormat {
             token_send: token_send.clone(),
@@ -39,16 +39,21 @@ pub trait Escrow {
         let caller = self.blockchain().get_caller();
         require!(
             self.check_duplicate_offers(&data_own_pov, &caller),
-            "Error; this offer already exists!"
+            "Error, this offer already exists!"
         );
-        
+
+        require!(
+            caller.clone() != pair_wallet,
+            "Initiator wallet is the same as the concluder wallet!"
+        );
+
         // Check for disallowed tokens
         require!(
-            !self.tokens_mapper().contains(&token_send),
+            !self.dissalowed_tokens().contains(&token_send),
             "The token you want to Swap From is disallowed for escrow!");
 
         require!(
-            !self.tokens_mapper().contains(&token_receive),
+            !self.dissalowed_tokens().contains(&token_receive),
             "The token you want to Swap To is disallowed for escrow!");
 
         let data_pair_pov: EscrowFormat<Self::Api> = EscrowFormat {
@@ -215,6 +220,7 @@ pub trait Escrow {
                             &amount_receive,
                             b"Concluder tokens sent"
                         );
+                        self.escrows_no().update(|value| *value += 1);
                         receive_mapper.swap_remove(&record);
                         if receive_mapper.len() == 0 {
                             self.receive_data().remove(&caller);
@@ -241,7 +247,7 @@ pub trait Escrow {
                 if !found{
                     require!(
                         false,
-                        "Wallet has a different offer than the one you accepted!"
+                        "Wallet hasn't made the offer you accepted!"
                     );
                 };
             },
@@ -263,67 +269,5 @@ pub trait Escrow {
         self.send_data().remove(address);
         self.receive_data().remove(address);
     }
-
-    // STORAGE
-
-    /// START TIMESTAMP
-    #[storage_mapper("esdt_mapper")]
-    fn start_timestamp(&self) -> SingleValueMapper<u64>;
-
-    #[only_owner]
-    #[endpoint(setStartTimestamp)]
-    fn set_start_timestamp(&self, start_timestamp: u64) {
-        self.start_timestamp().set(&start_timestamp)
-    }
-
-    #[only_owner]
-    #[endpoint(getStartTimestamp)]
-    fn get_start_timestamp(&self) {
-        self.start_timestamp();
-        }
-
-    /// DISSALOWED ESCROW TOKENS 
-    #[storage_mapper("esdt_mapper")]
-    fn tokens_mapper(&self) -> SetMapper<TokenIdentifier>;
-
-    #[only_owner]
-    #[endpoint(addDisallowedToken)]
-    fn add_dissallowd_tokens(&self, token_id: TokenIdentifier) {
-        self.tokens_mapper().insert(token_id);
-        }
-
-    #[only_owner]
-    #[endpoint(removeDisallowedToken)]
-    fn remove_dissallowd_tokens(&self, token_id: TokenIdentifier) {
-        self.tokens_mapper().remove(&token_id);
-        }
-
-    #[view(getDisallowedTokens)]
-    fn get_dissallowd_esdt(&self) -> SetMapper<TokenIdentifier>{
-            self.tokens_mapper()
-        }
-    
-    /// ESCROW DATA
-
-    /// DATA STORED WITH SENDER WALLET KEY
-    #[storage_mapper("send_data")]
-    fn send_data(&self) -> MapStorageMapper<ManagedAddress,  UnorderedSetMapper<EscrowWalletFormat<Self::Api>>>;
-
-    #[view(getSendData)]
-    fn get_send_data(&self, address: &ManagedAddress) ->  UnorderedSetMapper<EscrowWalletFormat<Self::Api>> 
-    {
-        self.send_data().get(address).unwrap()
-    }
-
-    /// DATA STORED WITH RECEIVER WALLET KEY
-    #[storage_mapper("receive_data")]
-    fn receive_data(&self) -> MapStorageMapper<ManagedAddress,  UnorderedSetMapper<EscrowWalletFormat<Self::Api>>>;
-    
-    #[view(getReceiveData)]
-    fn get_receive_data(&self, address: &ManagedAddress ) ->  UnorderedSetMapper<EscrowWalletFormat<Self::Api>> 
-    {
-        self.receive_data().get(address).unwrap()
-    }
-
  
 }

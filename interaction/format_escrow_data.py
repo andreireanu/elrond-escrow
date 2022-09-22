@@ -1,6 +1,7 @@
 import sys
 import os 
 import json
+import re
 
 type = sys.argv[1]
 address = sys.argv[2] 
@@ -16,7 +17,7 @@ if type == 'receive':
 
 out = ''
 for record in data:
-    splt = record['hex'].replace('0000000b',',').replace('00000008',',').split(',')
+    splt = re.sub(r'0000000(?!0).',',', record['hex']).split(',')
     stream = os.popen('erdpy wallet bech32 --encode ' + str(splt[0]))
     wallet = stream.read().rstrip() 
     token_to = bytearray.fromhex(splt[1]).decode()
