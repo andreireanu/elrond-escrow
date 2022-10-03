@@ -37,7 +37,7 @@ pub trait StorageModule {
     /// DISSALOWED ESCROW TOKENS 
     #[view(getDisallowedTokens)]
     #[storage_mapper("dissalowed_tokens")]
-    fn dissalowed_tokens(&self) -> SetMapper<TokenIdentifier>;
+    fn dissalowed_tokens(&self) -> UnorderedSetMapper<TokenIdentifier>;
  
     #[only_owner]
     #[endpoint(addDisallowedToken)]
@@ -48,7 +48,7 @@ pub trait StorageModule {
     #[only_owner]
     #[endpoint(removeDisallowedToken)]
     fn remove_dissallowd_tokens(&self, token_id: TokenIdentifier) {
-        self.dissalowed_tokens().remove(&token_id);
+        self.dissalowed_tokens().swap_remove(&token_id);
         }
  
     /// ESCROW DATA

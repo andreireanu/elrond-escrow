@@ -29,6 +29,12 @@ pub trait Escrow :
             "Escrow service is not available at the moment!"
         );
 
+        require!(
+            !self.blockchain().is_smart_contract(&pair_wallet),
+            "Cannot create offer for smart contract address!"
+        );
+        
+
         // Check for duplicate offers
         let data_own_pov: EscrowFormat<Self::Api> = EscrowFormat {
             token_send: token_send.clone(),
@@ -56,6 +62,7 @@ pub trait Escrow :
             !self.dissalowed_tokens().contains(&token_receive),
             "The token you want to Swap To is disallowed for escrow!");
 
+        // Main code for adding offer
         let data_pair_pov: EscrowFormat<Self::Api> = EscrowFormat {
             token_send: token_receive.clone(),
             amount_send: amount_receive.clone(),
@@ -63,8 +70,6 @@ pub trait Escrow :
             amount_receive: amount_send.clone(),
             };
 
-
-        // Main code for adding offer
         let send_mapper_option: Option<UnorderedSetMapper<EscrowWalletFormat<Self::Api>>> = self.send_data().get(&caller); 
         match send_mapper_option {
             Some(mut send_mapper) => {
@@ -247,7 +252,7 @@ pub trait Escrow :
                 if !found{
                     require!(
                         false,
-                        "Wallet hasn't made the offer you accepted!"
+                        "Peer wallet hasn't made the offer you accepted!"
                     );
                 };
             },
