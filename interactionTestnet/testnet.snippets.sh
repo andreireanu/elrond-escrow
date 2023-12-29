@@ -1,7 +1,7 @@
-PROXY=https://testnet-gateway.elrond.com
+PROXY=https://testnet-api.multiversx.com
 CHAIN_ID="T"
 WALLET_ALICE="${PWD}/elrond-escrow/wallets/alice.pem"
-CONTRACT_ADDRESS="erd1qqqqqqqqqqqqqpgq7gnykt83xyykvd7r7tyrpntl5t3gwexq7wpqy5qez6"
+CONTRACT_ADDRESS="erd1qqqqqqqqqqqqqpgq5tjds4m87v9r3wchnf3e3zdgdwhgf33j7wpq2m0t3r"
  
 START_TIMESTAMP=1664632708
 
@@ -34,7 +34,7 @@ upgrade() {
 ALICE_ADDRESS="erd1aqd2v3hsrpgpcscls6a6al35uc3vqjjmskj6vnvl0k93e73x7wpqtpctqw"
 ALICE_ADDRESS_HEX="$(erdpy wallet bech32 --decode ${ALICE_ADDRESS})"
 ALICE_ADDRESS_HEXX="0x$(erdpy wallet bech32 --decode ${ALICE_ADDRESS})"
-BOB_ADDRESS="erd1sv0e9udz3acxulek4jcs3p3hq3jpsc3nh6tqus7l00x846wp9fwq4rm4jf"
+BOB_ADDRESS="erd1wh2rz67zlq5nea7j4lvs39n0yavjlaxal88f744k2ps036ary8dq3ptyd4"
 BOB_ADDRESS_HEX="$(erdpy wallet bech32 --decode ${BOB_ADDRESS})"
 BOB_ADDRESS_HEXX="0x$(erdpy wallet bech32 --decode ${BOB_ADDRESS})"
 

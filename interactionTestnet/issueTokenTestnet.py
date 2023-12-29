@@ -10,10 +10,10 @@ from erdpy.wallet import signing
 import binascii as bs
 
 
-TOKEN_NAME = b"PACTE"
-TOKEN_SYMBOL = b"PACTE"
+TOKEN_NAME = b"PACTA"
+TOKEN_SYMBOL = b"PACTA"
 
-DECIMALS = 6
+DECIMALS = 18
 SUPPLY = 1000000000 * 10**DECIMALS
 
 
